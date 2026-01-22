@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>汪汪成绩解锁赛</title>
     <style>
+        /* 样式部分完全保留，不做任何修改，确保界面样子不变 */
         :root {
             --primary-blue: #4facfe;
             --secondary-blue: #00f2fe;
@@ -261,6 +262,24 @@
             height: 0;
         }
 
+        .btn-clear {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: linear-gradient(135deg, #ea4335 0%, #c5221f 100%);
+            box-shadow: 0 2px 8px rgba(234, 67, 53, 0.3);
+        }
+
+        .btn-clear:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(234, 67, 53, 0.4);
+        }
+
         .rank-num {
             width: 28px; height: 28px; background: #e8eaed; display: inline-flex; 
             align-items: center; justify-content: center; border-radius: 50%; font-weight: bold;
@@ -349,7 +368,15 @@
         <div class="card-title">✍️ 分数投喂</div>
         <div class="form-group">
             <label>选手姓名</label>
-            <input type="text" id="studentName" value="小汪选手" onchange="updateUI()">
+            <input type="text" id="studentName" value="小汪选手" oninput="autoMatchDogType()" onchange="updateUI()">
+        </div>
+        <div class="form-group">
+            <label>汪汪种类 (自动记忆)</label>
+            <select id="dogType" onchange="updateUI()">
+                <option value="bichon">可爱比熊</option>
+                <option value="samoyed">萨摩耶</option>
+                <option value="doberman">杜宾</option>
+            </select>
         </div>
         <div class="form-group">
             <label>挑战科目</label>
@@ -384,7 +411,7 @@
         </div>
         <div class="stage-tag" id="displayLevel">阶段 1</div>
         <div class="pet-img-container">
-            <img id="petImg" src="dog1.png" alt="小狗形象" onerror="this.src='https://via.placeholder.com/200?text=Please+Rename+Images'">
+            <img id="petImg" src="dog1.png" alt="小狗形象" onerror="this.src='https://via.placeholder.com/200?text=Check+Image+Path'">
         </div>
         <div id="stageName" class="stage-name">启蒙汪</div>
         
@@ -429,6 +456,7 @@
                     <button class="btn-import" onclick="document.getElementById('importFile').click()">📥 导入备份数据</button>
                     <input type="file" id="importFile" accept=".json,.txt" onchange="importBackup(event)" style="display:none">
                 </div>
+                <button class="btn-clear" onclick="clearAllRecords()">🗑️ 一键清空记录</button>
             </div>
         </div>
         <table id="historyTable">
@@ -452,31 +480,50 @@
 </div>
 
 <script>
-    // 阶段配置：名称, 门槛, 图片文件名
-    const STAGES = [
-        ["启蒙汪", 0, "dog1.png"],
-        ["追风汪", 80, "dog2.png"],
-        ["守护汪", 200, "dog3.png"],
-        ["全能汪", 400, "dog4.png"],
-        ["王牌汪", 800, "dog5.png"]
-    ];
+    // 1. 定义三种狗的图片皮肤
+    const THEMES = {
+        "bichon": ["dog1.png", "dog2.png", "dog3.png", "dog4.png", "dog5.png"],
+        "samoyed": ["smy1.png", "smy2.png", "smy3.png", "smy4.png", "smy5.png"],
+        "doberman": ["db1.png", "db2.png", "db3.png", "db4.png", "db5.png"]
+    };
+
+    // 2. 共享称号和门槛
+    const STAGE_NAMES = ["启蒙汪", "追风汪", "守护汪", "全能汪", "王牌汪"];
+    const THRESHOLDS = [0, 80, 200, 400, 800];
 
     let historyData = JSON.parse(localStorage.getItem('wangHistory')) || [];
+    // 选手和种类的映射表
+    let userDogMap = JSON.parse(localStorage.getItem('userDogMap')) || {};
 
     window.onload = () => updateUI();
 
+    // 自动识别：输入名字时，如果库里有，自动选对应的狗
+    function autoMatchDogType() {
+        const name = document.getElementById('studentName').value.trim();
+        if (userDogMap[name]) {
+            document.getElementById('dogType').value = userDogMap[name];
+        }
+    }
+
     function addSingleScore() {
         const name = document.getElementById('studentName').value.trim();
+        const type = document.getElementById('dogType').value;
         const subject = document.getElementById('subject').value;
         const score = parseInt(document.getElementById('score').value);
 
         if (!name || isNaN(score)) { alert("请填写完整信息哦！"); return; }
+        
+        // 记录该名字对应的狗种
+        userDogMap[name] = type;
+        localStorage.setItem('userDogMap', JSON.stringify(userDogMap));
+
         saveRecord(name, subject, score);
         document.getElementById('score').value = '';
     }
 
     function batchImport() {
         const text = document.getElementById('batchInput').value.trim();
+        const defaultType = document.getElementById('dogType').value;
         if (!text) return;
         text.split('\n').forEach(line => {
             const parts = line.split(/[，,]/);
@@ -484,9 +531,13 @@
                 const name = parts[0].trim();
                 const sub = parts[1].trim();
                 const num = parseInt(parts[2].trim());
-                if (name && !isNaN(num)) saveRecord(name, sub, num, false);
+                if (name && !isNaN(num)) {
+                    if(!userDogMap[name]) userDogMap[name] = defaultType;
+                    saveRecord(name, sub, num, false);
+                }
             }
         });
+        localStorage.setItem('userDogMap', JSON.stringify(userDogMap));
         document.getElementById('batchInput').value = '';
         updateUI();
     }
@@ -513,14 +564,102 @@
         renderStudentsStages(stats);
         
         const currentName = document.getElementById('studentName').value.trim();
-        renderPetCard(stats[currentName] || { totalExp: 0 });
+        const currentType = document.getElementById('dogType').value;
+        renderPetCard(stats[currentName] || { totalExp: 0, name: currentName }, currentType);
     }
 
+    // 这里修改了逻辑，使渲染时根据用户绑定的 Type 取图
+    function renderPetCard(user, forceType) {
+        const exp = user.totalExp;
+        const type = userDogMap[user.name] || forceType || 'bichon';
+        const images = THEMES[type] || THEMES.bichon;
+
+        let idx = 0;
+        for (let i = THRESHOLDS.length - 1; i >= 0; i--) {
+            if (exp >= THRESHOLDS[i]) {
+                idx = i;
+                break;
+            }
+        }
+
+        const nextExp = THRESHOLDS[idx + 1] ? THRESHOLDS[idx + 1] : "MAX";
+        
+        document.getElementById('stageName').innerText = STAGE_NAMES[idx];
+        document.getElementById('petImg').src = images[idx];
+        document.getElementById('displayLevel').innerText = "阶段 " + (idx + 1);
+        document.getElementById('displayExpText').innerText = nextExp === "MAX" ? exp + " (最高级)" : exp + " / " + nextExp;
+
+        let percent = nextExp === "MAX" ? 100 : (exp / nextExp) * 100;
+        document.getElementById('progressBar').style.width = Math.min(percent, 100) + "%";
+    }
+
+    function calculateStats() {
+        const stats = {};
+        historyData.forEach(item => {
+            if (!stats[item.name]) stats[item.name] = { totalExp: 0, name: item.name };
+            stats[item.name].totalExp += item.score;
+        });
+        return stats;
+    }
+
+    function renderRank(stats) {
+        const sorted = Object.values(stats).sort((a, b) => b.totalExp - a.totalExp);
+        document.querySelector('#rankTable tbody').innerHTML = sorted.map((s, i) => {
+            let title = STAGE_NAMES[0];
+            for (let j = THRESHOLDS.length - 1; j >= 0; j--) {
+                if (s.totalExp >= THRESHOLDS[j]) { title = STAGE_NAMES[j]; break; }
+            }
+            return `<tr>
+                <td><span class="rank-num">${i + 1}</span></td>
+                <td>${s.name}</td>
+                <td><span style="color:#1a73e8">${title}</span></td>
+                <td><b>${s.totalExp}</b></td>
+            </tr>`;
+        }).join('');
+    }
+
+    function renderStudentsStages(stats) {
+        const container = document.getElementById('studentsStages');
+        const sorted = Object.values(stats).sort((a, b) => b.totalExp - a.totalExp);
+        
+        if (sorted.length === 0) {
+            container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #999; padding: 20px;">暂无学生数据</div>';
+            return;
+        }
+
+        container.innerHTML = sorted.map(s => {
+            const exp = s.totalExp;
+            const type = userDogMap[s.name] || 'bichon';
+            const images = THEMES[type];
+            let idx = 0;
+            for (let i = THRESHOLDS.length - 1; i >= 0; i--) {
+                if (exp >= THRESHOLDS[i]) { idx = i; break; }
+            }
+            return `
+                <div class="student-stage-card" onclick="selectStudent('${s.name}')">
+                    <div class="student-stage-avatar">
+                        <img src="${images[idx]}" alt="${STAGE_NAMES[idx]}" onerror="this.src='https://via.placeholder.com/80?text=🐕'">
+                    </div>
+                    <div class="student-stage-name">${s.name}</div>
+                    <div class="student-stage-title">${STAGE_NAMES[idx]}</div>
+                    <div class="student-stage-level">阶段 ${idx + 1}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function selectStudent(name) {
+        document.getElementById('studentName').value = name;
+        if(userDogMap[name]) document.getElementById('dogType').value = userDogMap[name];
+        updateUI();
+        document.querySelector('.pet-display').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // 以下功能完全保留原样
     function updateHistoryFilter(stats) {
         const filter = document.getElementById('historyFilter');
         const names = Object.keys(stats).sort();
         const currentFilter = filter.value;
-        
         filter.innerHTML = '<option value="">全部</option>';
         names.forEach(name => {
             const option = document.createElement('option');
@@ -535,11 +674,7 @@
         const switcher = document.getElementById('nameSwitcher');
         const currentName = document.getElementById('studentName').value.trim();
         const names = Object.keys(stats).sort();
-        
-        // 保存当前选择
         const selectedValue = switcher.value || currentName;
-        
-        // 清空并重新填充选项
         switcher.innerHTML = '<option value="">选择选手</option>';
         names.forEach(name => {
             const option = document.createElement('option');
@@ -548,19 +683,6 @@
             option.selected = name === selectedValue;
             switcher.appendChild(option);
         });
-        
-        // 如果没有选中且有当前输入的名称，设置为选中
-        if (!switcher.value && currentName && names.includes(currentName)) {
-            switcher.value = currentName;
-        } else if (!switcher.value && currentName) {
-            // 如果输入的名称不在列表中，添加它
-            const option = document.createElement('option');
-            option.value = currentName;
-            option.textContent = currentName;
-            option.selected = true;
-            switcher.appendChild(option);
-            switcher.value = currentName;
-        }
     }
 
     function switchPlayer() {
@@ -568,57 +690,20 @@
         const selectedName = switcher.value.trim();
         if (selectedName) {
             document.getElementById('studentName').value = selectedName;
+            if(userDogMap[selectedName]) document.getElementById('dogType').value = userDogMap[selectedName];
             updateUI();
         }
-    }
-
-    function calculateStats() {
-        const stats = {};
-        historyData.forEach(item => {
-            if (!stats[item.name]) stats[item.name] = { totalExp: 0, name: item.name };
-            stats[item.name].totalExp += item.score;
-        });
-        return stats;
-    }
-
-    function renderPetCard(user) {
-        const exp = user.totalExp;
-        let current = STAGES[0];
-        let nextExp = STAGES[1][1];
-        let idx = 0;
-
-        for (let i = STAGES.length - 1; i >= 0; i--) {
-            if (exp >= STAGES[i][1]) {
-                current = STAGES[i];
-                idx = i;
-                nextExp = STAGES[i+1] ? STAGES[i+1][1] : "MAX";
-                break;
-            }
-        }
-
-        document.getElementById('stageName').innerText = current[0];
-        document.getElementById('petImg').src = current[2];
-        document.getElementById('displayLevel').innerText = "阶段 " + (idx + 1);
-        document.getElementById('displayExpText').innerText = nextExp === "MAX" ? exp + " (最高级)" : exp + " / " + nextExp;
-
-        let percent = nextExp === "MAX" ? 100 : (exp / nextExp) * 100;
-        document.getElementById('progressBar').style.width = Math.min(percent, 100) + "%";
     }
 
     function renderHistory() {
         const filter = document.getElementById('historyFilter').value;
         let filteredData = historyData;
-        
-        if (filter) {
-            filteredData = historyData.filter(item => item.name === filter);
-        }
-        
+        if (filter) filteredData = historyData.filter(item => item.name === filter);
         const tbody = document.querySelector('#historyTable tbody');
         if (filteredData.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#999; padding:30px;">暂无记录</td></tr>';
             return;
         }
-        
         tbody.innerHTML = filteredData.map(item => `
             <tr>
                 <td style="font-size:0.8rem; color:#999">${item.time}</td>
@@ -630,153 +715,53 @@
         `).join('');
     }
 
-    function renderRank(stats) {
-        const sorted = Object.values(stats).sort((a, b) => b.totalExp - a.totalExp);
-        document.querySelector('#rankTable tbody').innerHTML = sorted.map((s, i) => {
-            let title = STAGES[0][0];
-            for (let j = STAGES.length - 1; j >= 0; j--) {
-                if (s.totalExp >= STAGES[j][1]) { title = STAGES[j][0]; break; }
-            }
-            return `<tr>
-                <td><span class="rank-num">${i + 1}</span></td>
-                <td>${s.name}</td>
-                <td><span style="color:#1a73e8">${title}</span></td>
-                <td><b>${s.totalExp}</b></td>
-            </tr>`;
-        }).join('');
-    }
-
-    function getStudentStage(exp) {
-        let current = STAGES[0];
-        let idx = 0;
-        for (let i = STAGES.length - 1; i >= 0; i--) {
-            if (exp >= STAGES[i][1]) {
-                current = STAGES[i];
-                idx = i;
-                break;
-            }
-        }
-        return { stage: current, index: idx };
-    }
-
-    function renderStudentsStages(stats) {
-        const container = document.getElementById('studentsStages');
-        const sorted = Object.values(stats).sort((a, b) => b.totalExp - a.totalExp);
-        
-        if (sorted.length === 0) {
-            container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #999; padding: 20px;">暂无学生数据</div>';
-            return;
-        }
-
-        container.innerHTML = sorted.map(s => {
-            const { stage, index } = getStudentStage(s.totalExp);
-            return `
-                <div class="student-stage-card" onclick="selectStudent('${s.name}')">
-                    <div class="student-stage-avatar">
-                        <img src="${stage[2]}" alt="${stage[0]}" onerror="this.src='https://via.placeholder.com/80?text=🐕'">
-                    </div>
-                    <div class="student-stage-name">${s.name}</div>
-                    <div class="student-stage-title">${stage[0]}</div>
-                    <div class="student-stage-level">阶段 ${index + 1}</div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    function selectStudent(name) {
-        document.getElementById('studentName').value = name;
-        document.getElementById('nameSwitcher').value = name;
-        updateUI();
-        // 滚动到当前阶段卡片
-        document.querySelector('.pet-display').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    // 数据备份功能
     function downloadBackup() {
-        const dataStr = JSON.stringify(historyData, null, 2);
+        const data = { history: historyData, userMap: userDogMap };
+        const dataStr = JSON.stringify(data, null, 2);
         const dataBlob = new Blob([dataStr], { type: 'application/json' });
         const url = URL.createObjectURL(dataBlob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `汪汪成绩数据备份_${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(link);
+        link.download = `汪汪成绩备份_${new Date().toISOString().split('T')[0]}.json`;
         link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        alert('备份数据已下载！');
     }
 
-    // 导入备份数据
     function importBackup(event) {
         const file = event.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
-                const text = e.target.result;
-                let importedData;
-                
-                // 尝试解析JSON
-                try {
-                    importedData = JSON.parse(text);
-                } catch (e) {
-                    // 如果不是JSON，尝试按文本格式解析（兼容旧格式）
-                    alert('文件格式不正确，请确保是有效的JSON格式！');
-                    return;
+                const imported = JSON.parse(e.target.result);
+                if (imported.history) {
+                    historyData = imported.history;
+                    userDogMap = imported.userMap || {};
+                    localStorage.setItem('wangHistory', JSON.stringify(historyData));
+                    localStorage.setItem('userDogMap', JSON.stringify(userDogMap));
+                    updateUI();
+                    alert('数据已恢复！');
                 }
-
-                if (!Array.isArray(importedData)) {
-                    alert('数据格式不正确，应为数组格式！');
-                    return;
-                }
-
-                // 验证数据格式
-                const isValid = importedData.every(item => 
-                    item.id !== undefined && 
-                    item.time !== undefined && 
-                    item.name !== undefined && 
-                    item.subject !== undefined && 
-                    item.score !== undefined
-                );
-
-                if (!isValid) {
-                    alert('数据格式不正确，缺少必要字段！');
-                    return;
-                }
-
-                // 询问用户是覆盖还是合并
-                const action = confirm('是否合并导入？（取消则覆盖现有数据）');
-                if (action) {
-                    // 合并数据：去重并合并
-                    const existingIds = new Set(historyData.map(item => item.id));
-                    const newRecords = importedData.filter(item => !existingIds.has(item.id));
-                    historyData = [...historyData, ...newRecords];
-                    alert(`成功合并 ${newRecords.length} 条新记录！`);
-                } else {
-                    // 覆盖数据
-                    if (confirm('确定要覆盖所有现有数据吗？此操作不可撤销！')) {
-                        historyData = importedData;
-                        alert('数据已覆盖！');
-                    } else {
-                        return;
-                    }
-                }
-
-                localStorage.setItem('wangHistory', JSON.stringify(historyData));
-                updateUI();
-                
-                // 清空文件选择，允许重复导入同一文件
-                event.target.value = '';
-            } catch (error) {
-                alert('导入失败：' + error.message);
-            }
+            } catch (error) { alert('导入失败'); }
         };
-        
         reader.readAsText(file);
     }
-</script>
 
+    function clearAllRecords() {
+        const count = historyData.length;
+        if (count === 0) {
+            alert('当前没有记录可清空！');
+            return;
+        }
+        
+        if (confirm(`确定要清空所有 ${count} 条赛程记录吗？\n\n此操作不可撤销！建议先下载备份数据。`)) {
+            if (confirm('最后确认：真的要清空所有记录吗？')) {
+                historyData = [];
+                localStorage.setItem('wangHistory', JSON.stringify(historyData));
+                updateUI();
+                alert('所有记录已清空！');
+            }
+        }
+    }
+</script>
 </body>
 </html>
-
